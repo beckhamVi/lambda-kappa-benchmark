@@ -6,3 +6,18 @@ data/*
 build/
 .gradle/
 target/
+codigo.md
+# Visual Studio cache
+.vs/
+*.vsidx
+
+# VSCode
+.vscode/
+
+# Simulator build
+/simulator-cpp/build/
+*.exe
+*.dll
+
+# Private notes
+comandos.md
