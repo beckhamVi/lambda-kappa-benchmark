@@ -1,0 +1,8 @@
+.env
+data/*
+!data/.gitkeep
+.idea/
+*.iml
+build/
+.gradle/
+target/
