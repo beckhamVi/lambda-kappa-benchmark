@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <random>
 #include <string>
@@ -22,6 +23,7 @@
 struct Config {
     std::string brokers = "localhost:9092";
     std::string topic = "events";
+    std::string replayCsv;                       // si se indica, publica este CSV en vez de generar eventos
     std::string catalog = "../data/sample.csv";  // se usa para copiar productos y popularidad reales
     std::string startDate = "2020-05-01";        // fecha simulada de inicio (despues del CSV historico)
     long long total = 1000000;                   // eventos a enviar
@@ -42,6 +44,7 @@ static Config parseArgs(int argc, char** argv) {
         if (k == "--brokers") c.brokers = v;
         else if (k == "--topic") c.topic = v;
         else if (k == "--catalog") c.catalog = v;
+        else if (k == "--replay-csv") c.replayCsv = v;
         else if (k == "--start-date") c.startDate = v;
         else if (k == "--total") c.total = std::stoll(v);
         else if (k == "--rate") c.rate = std::stoi(v);
@@ -343,6 +346,15 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    std::ifstream replay;
+    if (!cfg.replayCsv.empty()) {
+        replay.open(cfg.replayCsv);
+        if (!replay) { std::cerr << "No se pudo abrir " << cfg.replayCsv << "\n"; return 1; }
+        std::string header;
+        std::getline(replay, header);
+        cfg.total = std::numeric_limits<long long>::max();  // termina al acabar el archivo
+    }
+
     std::cout << "Enviando " << cfg.total << " eventos a " << cfg.brokers << " topic=" << cfg.topic
               << " rate=" << (cfg.rate > 0 ? std::to_string(cfg.rate) + "/s" : "maximo")
               << " seed=" << cfg.seed << "\n";
@@ -358,7 +370,15 @@ int main(int argc, char** argv) {
 
     while (sent < cfg.total) {
         for (long long i = 0; i < perTick && sent < cfg.total; ++i) {
-            Generated e = gen.next();
+            Generated e;
+            if (replay.is_open()) {
+                if (!std::getline(replay, e.line)) { cfg.total = sent; break; }
+                if (!e.line.empty() && e.line.back() == '\r') e.line.pop_back();
+                auto f = splitCsv(e.line);
+                e.key = f.size() == 9 ? f[7] : "";
+            } else {
+                e = gen.next();
+            }
             for (;;) {
                 RdKafka::ErrorCode rc = producer->produce(
                     cfg.topic, RdKafka::Topic::PARTITION_UA, RdKafka::Producer::RK_MSG_COPY,
