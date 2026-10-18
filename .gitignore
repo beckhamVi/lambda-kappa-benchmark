@@ -3,18 +3,18 @@ data/*
 !data/.gitkeep
 .idea/
 *.iml
-build/
-.gradle/
-target/
 codigo.md
-# Visual Studio cache
+
+**/build/
+**/.gradle/
+target/
+
 .vs/
 *.vsidx
 
-# VSCode
 .vscode/
 
-# Simulator build
+# c++
 /simulator-cpp/build/
 *.exe
 *.dll
@@ -23,4 +23,4 @@ codigo.md
 comandos.md
 
 ingestion-kappa/kappa-state/
-simulator-cpp/out/
+simulator-cpp/out

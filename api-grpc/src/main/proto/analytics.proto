@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package bi.analytics.v1;
+
+option java_multiple_files = true;
+option java_package = "com.bi.apigrpc.proto";
+
+// Equivalente a GET /api/v1/sales, /products/top y /categories/sales de api-rest.
+// Fechas: yyyy-MM-dd. Montos (revenue): string decimal para no perder precision (BigDecimal).
+service Analytics {
+  rpc GetSales(SalesRequest) returns (SalesResponse);
+  rpc GetTopProducts(TopProductsRequest) returns (TopProductsResponse);
+  rpc GetCategorySales(CategorySalesRequest) returns (CategorySalesResponse);
+}
+
+message SalesRequest {
+  string from = 1;
+  string to = 2;
+  string granularity = 3; // day | week | month (vacio = day)
+}
+
+message SalesItem {
+  string period = 1;
+  string revenue = 2;
+  int64 units = 3;
+  int64 views = 4;
+  int64 carts = 5;
+  int64 purchases = 6;
+}
+
+message SalesResponse {
+  string from = 1;
+  string to = 2;
+  string granularity = 3;
+  repeated SalesItem items = 4;
+}
+
+message TopProductsRequest {
+  string from = 1;
+  string to = 2;
+  string metric = 3;        // revenue | views | purchases (vacio = revenue)
+  optional int32 limit = 4; // ausente = 10
+}
+
+message TopProductItem {
+  int64 product_id = 1;
+  int64 views = 2;
+  int64 carts = 3;
+  int64 purchases = 4;
+  string revenue = 5;
+}
+
+message TopProductsResponse {
+  string from = 1;
+  string to = 2;
+  string metric = 3;
+  int32 limit = 4;
+  repeated TopProductItem items = 5;
+}
+
+message CategorySalesRequest {
+  string from = 1;
+  string to = 2;
+  optional int32 limit = 3; // ausente = 10
+}
+
+message CategorySalesItem {
+  string category_code = 1;
+  string revenue = 2;
+  int64 units = 3;
+  int64 views = 4;
+  int64 carts = 5;
+  int64 purchases = 6;
+}
+
+message CategorySalesResponse {
+  string from = 1;
+  string to = 2;
+  int32 limit = 3;
+  repeated CategorySalesItem items = 4;
+}
