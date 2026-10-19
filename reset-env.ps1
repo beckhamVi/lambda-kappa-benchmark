@@ -21,6 +21,19 @@ function Remove-Topics($pattern) {
     }
 }
 
+function Remove-ConsumerGroup($group) {
+    # Borra el grupo si existe (si no existe, kafka-consumer-groups devuelve error y lo ignoramos)
+    $exists = docker exec $kafka /opt/kafka/bin/kafka-consumer-groups.sh `
+        --bootstrap-server localhost:9092 --list 2>$null | Where-Object { $_ -eq $group }
+    if ($exists) {
+        Write-Host "Borrando consumer group $group"
+        docker exec $kafka /opt/kafka/bin/kafka-consumer-groups.sh `
+            --bootstrap-server localhost:9092 --delete --group $group
+    } else {
+        Write-Host "Consumer group $group no existe, nada que borrar"
+    }
+}
+
 if ($Target -in 'lambda', 'all') {
     Write-Host '== Reset LAMBDA =='
     # run_log no se borra: guarda el historial de mediciones del batch
@@ -31,10 +44,25 @@ if ($Target -in 'lambda', 'all') {
 if ($Target -in 'kappa', 'all') {
     Write-Host '== Reset KAPPA =='
     Run-Sql 'TRUNCATE kappa.daily_sales, kappa.daily_product_stats, kappa.daily_category_sales, kappa.rejected_events;'
-    # topic de entrada + topics internos de Kafka Streams (repartition y changelog)
-    Remove-Topics '^events-kappa$|^kappa-ingestion-'
+
+    # 1. Borrar el consumer group ANTES que los topics
+    #    (si no, el grupo queda con offsets huerfanos y a veces no reinicia desde earliest)
+    Remove-ConsumerGroup 'kappa-ingestion'
+
+    # 2. Topics: fuente (+ variantes del simulador) e internos de Kafka Streams
+    #    - ^events-kappa$         -> topic fuente que consume la app
+    #    - ^events-kappa-bench$   -> topic que uso el simulador por error
+    #    - ^kappa-ingestion-      -> repartition + changelog de los state stores
+    Remove-Topics '^events-kappa$|^events-kappa-bench$|^kappa-ingestion-'
+
+    # 3. State store local (RocksDB)
     $state = Join-Path $PSScriptRoot 'ingestion-kappa\kappa-state'
     if (Test-Path $state) { Remove-Item -Recurse -Force $state; Write-Host 'Borrada carpeta kappa-state' }
 }
 
-Write-Host 'Listo. Ahora arranca la app y vuelve a correr el simulador.'
+Write-Host ''
+Write-Host 'Listo. Ahora:'
+Write-Host '  1) Arranca la app Spring (Kafka Streams recreara events-kappa con 3 particiones).'
+Write-Host '  2) Espera a ver en el log: "Kappa: Kafka Streams iniciado, escuchando topic events-kappa"'
+Write-Host '  3) Recien entonces lanza el simulador apuntando al MISMO topic:'
+Write-Host '     simulator.exe --brokers localhost:9092 --topic events-kappa ...'

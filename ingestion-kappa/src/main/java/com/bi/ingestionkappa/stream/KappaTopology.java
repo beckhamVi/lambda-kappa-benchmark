@@ -142,7 +142,7 @@ public class KappaTopology implements ApplicationRunner {
         @Override
         public void process(Record<String, String> r) {
             if (r.value() == null) return;
-            metrics.consumed.incrementAndGet();
+            metrics.onConsumed();
             long offset = ctx.recordMetadata().map(RecordMetadata::offset).orElse(-1L);
 
             CleaningResult res = CleaningRules.clean(new RawEvent(offset, r.value()));
