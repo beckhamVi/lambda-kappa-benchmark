@@ -355,7 +355,8 @@ int main(int argc, char** argv) {
         cfg.total = std::numeric_limits<long long>::max();  // termina al acabar el archivo
     }
 
-    std::cout << "Enviando " << cfg.total << " eventos a " << cfg.brokers << " topic=" << cfg.topic
+    const std::string what = replay.is_open() ? ("CSV " + cfg.replayCsv) : (std::to_string(cfg.total) + " eventos");
+    std::cout << "Enviando " << what << " a " << cfg.brokers << " topic=" << cfg.topic
               << " rate=" << (cfg.rate > 0 ? std::to_string(cfg.rate) + "/s" : "maximo")
               << " seed=" << cfg.seed << "\n";
 
@@ -366,9 +367,18 @@ int main(int argc, char** argv) {
     long long lastSent = 0;
     long long sent = 0;
     const auto tick = std::chrono::milliseconds(10);
-    const long long perTick = cfg.rate > 0 ? std::max(1, cfg.rate / 100) : 5000;
+    // Eventos por tick de 10 ms. Se acumula la parte fraccionaria para que tasas
+    // bajas (p. ej. 20/s => 0.2 por tick) o no multiplo de 100 (p. ej. 250/s) sean exactas.
+    const double eventsPerTick = cfg.rate > 0 ? cfg.rate / 100.0 : 0.0;
+    double carry = 0.0;
 
     while (sent < cfg.total) {
+        long long perTick = 5000;  // rate = 0 => maxima velocidad
+        if (cfg.rate > 0) {
+            carry += eventsPerTick;
+            perTick = static_cast<long long>(carry);
+            carry -= static_cast<double>(perTick);
+        }
         for (long long i = 0; i < perTick && sent < cfg.total; ++i) {
             Generated e;
             if (replay.is_open()) {
